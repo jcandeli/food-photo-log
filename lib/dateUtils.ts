@@ -54,9 +54,9 @@ export function groupPhotosByDay(photos: Photo[]): DayGroup[] {
     }
   });
 
-  // Sort photos within each day by timestamp (newest first)
+  // Sort photos within each day by timestamp (oldest first)
   groups.forEach((group) => {
-    group.photos.sort((a, b) => b.timestamp - a.timestamp);
+    group.photos.sort((a, b) => a.timestamp - b.timestamp);
   });
 
   return Array.from(groups.values());

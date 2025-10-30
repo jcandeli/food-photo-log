@@ -1,16 +1,19 @@
-'use client';
+"use client";
 
-import Image from 'next/image';
-import styled from 'styled-components';
+import Image from "next/image";
+import styled from "styled-components";
 
 const Tile = styled.div`
   position: relative;
-  aspect-ratio: 1;
   border-radius: 8px;
   overflow: hidden;
   cursor: pointer;
   background-color: #f0f0f0;
   transition: transform 0.2s, box-shadow 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
 
   &:hover {
     transform: scale(1.02);
@@ -21,7 +24,9 @@ const Tile = styled.div`
 const ImageContainer = styled.div`
   position: relative;
   width: 100%;
-  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 `;
 
 const Overlay = styled.div`
@@ -49,9 +54,15 @@ export function PhotoTile({ photo, onClick }: PhotoTileProps) {
       <ImageContainer>
         <Image
           src={photo.url}
-          alt={photo.description || 'Food photo'}
-          fill
-          style={{ objectFit: 'cover' }}
+          alt={photo.description || "Food photo"}
+          width={400}
+          height={300}
+          style={{
+            objectFit: "contain",
+            width: "100%",
+            height: "auto",
+            maxHeight: "400px",
+          }}
           sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
         />
         {photo.description && (
@@ -63,4 +74,3 @@ export function PhotoTile({ photo, onClick }: PhotoTileProps) {
     </Tile>
   );
 }
-

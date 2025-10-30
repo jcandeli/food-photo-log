@@ -110,7 +110,7 @@ export async function listPhotos(): Promise<Array<{
         timestamp: parsed.timestamp,
       };
     })
-    .sort((a, b) => b.timestamp - a.timestamp);
+    .sort((a, b) => a.timestamp - b.timestamp);
 
   return photos;
 }

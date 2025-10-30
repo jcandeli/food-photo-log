@@ -9,26 +9,26 @@ export default function Home() {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    async function fetchPhotos() {
-      try {
-        const response = await fetch('/api/photos');
-        const data = await response.json();
-        if (response.ok) {
-          setPhotos(data.photos);
-        }
-      } catch (error) {
-        console.error('Failed to fetch photos:', error);
-      } finally {
-        setIsLoading(false);
+  const fetchPhotos = async () => {
+    try {
+      const response = await fetch('/api/photos');
+      const data = await response.json();
+      if (response.ok) {
+        setPhotos(data.photos);
       }
+    } catch (error) {
+      console.error('Failed to fetch photos:', error);
+    } finally {
+      setIsLoading(false);
     }
+  };
 
+  useEffect(() => {
     fetchPhotos();
   }, []);
 
   const dayGroups: DayGroup[] = groupPhotosByDay(photos);
 
-  return <WeekView dayGroups={dayGroups} isLoading={isLoading} />;
+  return <WeekView dayGroups={dayGroups} isLoading={isLoading} onRefresh={fetchPhotos} />;
 }
 
