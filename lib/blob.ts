@@ -50,13 +50,60 @@ export async function uploadPhoto(
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
+  // Process image with EXIF orientation handling
+  // Read metadata to get EXIF orientation
+  const image = sharp(buffer);
+  const metadata = await image.metadata();
+
+  // Build processing pipeline
+  let pipeline = image;
+
+  // Apply EXIF orientation to pixel data before resizing
+  // This ensures the image is correctly oriented regardless of device
+  if (metadata.orientation && metadata.orientation > 1) {
+    // Handle common orientations (most phone photos use 6 or 8 for portrait)
+    // Orientation 6 = 90° clockwise, Orientation 8 = 90° counter-clockwise
+    switch (metadata.orientation) {
+      case 2:
+        // Horizontal flip
+        pipeline = pipeline.flip();
+        break;
+      case 3:
+        // 180° rotation
+        pipeline = pipeline.rotate(180);
+        break;
+      case 4:
+        // Vertical flip
+        pipeline = pipeline.flop();
+        break;
+      case 5:
+        // 90° counter-clockwise + horizontal flip
+        pipeline = pipeline.rotate(-90).flip();
+        break;
+      case 6:
+        // 90° clockwise (most common for portrait photos)
+        pipeline = pipeline.rotate(90);
+        break;
+      case 7:
+        // 90° clockwise + horizontal flip
+        pipeline = pipeline.rotate(90).flip();
+        break;
+      case 8:
+        // 90° counter-clockwise (common for portrait photos)
+        pipeline = pipeline.rotate(-90);
+        break;
+    }
+  }
+
   // Resize image: max width 1920px, maintain aspect ratio, quality 85%
-  const resizedBuffer = await sharp(buffer)
+  // After applying orientation, ensure EXIF orientation tag is removed from output
+  const resizedBuffer = await pipeline
     .resize(1920, null, {
       withoutEnlargement: true,
       fit: 'inside',
     })
     .jpeg({ quality: 85 })
+    .withMetadata({ orientation: 1 }) // Remove EXIF orientation tag (set to normal)
     .toBuffer();
 
   const uploadDate = new Date().toISOString();
