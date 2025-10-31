@@ -7,9 +7,9 @@ export async function GET() {
     const allPhotos = await listPhotos();
 
     // Filter to current week
+    // Use timestamp directly since it's timezone-independent (milliseconds since epoch)
     const currentWeekPhotos = allPhotos.filter((photo) => {
-      const photoDate = new Date(photo.uploadDate);
-      return isDateInCurrentWeek(photoDate);
+      return isDateInCurrentWeek(photo.timestamp);
     });
 
     return NextResponse.json({ photos: currentWeekPhotos });

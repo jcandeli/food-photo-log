@@ -1,5 +1,13 @@
 import { Photo, DayGroup } from '@/types/photo';
 
+// Get local date string in YYYY-MM-DD format (not UTC)
+function getLocalDateString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export function getCurrentWeekRange(): { start: Date; end: Date } {
   const now = new Date();
   const day = now.getDay();
@@ -23,9 +31,10 @@ export function formatDate(date: Date): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export function isDateInCurrentWeek(date: Date): boolean {
+export function isDateInCurrentWeek(date: Date | number): boolean {
   const { start, end } = getCurrentWeekRange();
-  return date >= start && date <= end;
+  const dateObj = typeof date === 'number' ? new Date(date) : date;
+  return dateObj >= start && dateObj <= end;
 }
 
 export function groupPhotosByDay(photos: Photo[]): DayGroup[] {
@@ -36,7 +45,7 @@ export function groupPhotosByDay(photos: Photo[]): DayGroup[] {
   for (let i = 0; i < 7; i++) {
     const date = new Date(start);
     date.setDate(start.getDate() + i);
-    const dayKey = date.toISOString().split('T')[0];
+    const dayKey = getLocalDateString(date);
     groups.set(dayKey, {
       dayOfWeek: formatDayOfWeek(date),
       date: formatDate(date),
@@ -45,9 +54,10 @@ export function groupPhotosByDay(photos: Photo[]): DayGroup[] {
   }
 
   // Group photos by day
+  // Use timestamp directly since it's timezone-independent (milliseconds since epoch)
   photos.forEach((photo) => {
-    const photoDate = new Date(photo.uploadDate);
-    const dayKey = photoDate.toISOString().split('T')[0];
+    const photoDate = new Date(photo.timestamp);
+    const dayKey = getLocalDateString(photoDate);
     const group = groups.get(dayKey);
     if (group) {
       group.photos.push(photo);
