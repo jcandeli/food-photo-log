@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { listPhotos, deletePhoto } from '@/lib/blob';
-import { isDateInCurrentWeek } from '@/lib/dateUtils';
+import { NextRequest, NextResponse } from "next/server";
+import { listPhotos, deletePhoto } from "@/lib/blob";
+import { isDateInCurrentWeek } from "@/lib/dateUtils";
 
 export async function GET() {
   try {
@@ -14,9 +14,9 @@ export async function GET() {
 
     return NextResponse.json({ photos: currentWeekPhotos });
   } catch (error) {
-    console.error('List photos error:', error);
+    console.error("List photos error:", error);
     return NextResponse.json(
-      { error: 'Failed to fetch photos' },
+      { error: "Failed to fetch photos" },
       { status: 500 }
     );
   }
@@ -25,11 +25,11 @@ export async function GET() {
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const url = searchParams.get('url');
+    const url = searchParams.get("url");
 
     if (!url) {
       return NextResponse.json(
-        { error: 'Photo URL is required' },
+        { error: "Photo URL is required" },
         { status: 400 }
       );
     }
@@ -38,11 +38,10 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Delete photo error:', error);
+    console.error("Delete photo error:", error);
     return NextResponse.json(
-      { error: 'Failed to delete photo' },
+      { error: "Failed to delete photo" },
       { status: 500 }
     );
   }
 }
-
