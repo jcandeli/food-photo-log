@@ -66,11 +66,11 @@ export function groupPhotosByDay(photos: Photo[]): DayGroup[] {
     group.photos.sort((a, b) => a.timestamp - b.timestamp);
   });
 
-  // Sort days by date (newest first) using the first photo's timestamp in each group
+  // Sort days by date (oldest first) using the first photo's timestamp in each group
   return Array.from(groups.values()).sort((a, b) => {
     const timestampA = a.photos[0]?.timestamp || 0;
     const timestampB = b.photos[0]?.timestamp || 0;
-    return timestampB - timestampA;
+    return timestampA - timestampB;
   });
 }
 
