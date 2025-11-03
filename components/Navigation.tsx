@@ -37,6 +37,9 @@ export function Navigation() {
       <NavLink href="/upload" $active={pathname === '/upload'}>
         Upload Photo
       </NavLink>
+      <NavLink href="/delete-all" $active={pathname === '/delete-all'}>
+        Delete All Photos
+      </NavLink>
     </Nav>
   );
 }

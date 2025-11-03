@@ -38,26 +38,23 @@ export function isDateInCurrentWeek(date: Date | number): boolean {
 }
 
 export function groupPhotosByDay(photos: Photo[]): DayGroup[] {
-  const { start } = getCurrentWeekRange();
   const groups: Map<string, DayGroup> = new Map();
-
-  // Initialize all days of the week
-  for (let i = 0; i < 7; i++) {
-    const date = new Date(start);
-    date.setDate(start.getDate() + i);
-    const dayKey = getLocalDateString(date);
-    groups.set(dayKey, {
-      dayOfWeek: formatDayOfWeek(date),
-      date: formatDate(date),
-      photos: [],
-    });
-  }
 
   // Group photos by day
   // Use timestamp directly since it's timezone-independent (milliseconds since epoch)
   photos.forEach((photo) => {
     const photoDate = new Date(photo.timestamp);
     const dayKey = getLocalDateString(photoDate);
+
+    // Create group if it doesn't exist
+    if (!groups.has(dayKey)) {
+      groups.set(dayKey, {
+        dayOfWeek: formatDayOfWeek(photoDate),
+        date: formatDate(photoDate),
+        photos: [],
+      });
+    }
+
     const group = groups.get(dayKey);
     if (group) {
       group.photos.push(photo);
@@ -69,6 +66,11 @@ export function groupPhotosByDay(photos: Photo[]): DayGroup[] {
     group.photos.sort((a, b) => a.timestamp - b.timestamp);
   });
 
-  return Array.from(groups.values());
+  // Sort days by date (newest first) using the first photo's timestamp in each group
+  return Array.from(groups.values()).sort((a, b) => {
+    const timestampA = a.photos[0]?.timestamp || 0;
+    const timestampB = b.photos[0]?.timestamp || 0;
+    return timestampB - timestampA;
+  });
 }
 
