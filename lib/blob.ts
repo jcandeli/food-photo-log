@@ -9,9 +9,21 @@ interface PhotoMetadata {
 
 // Encode metadata in filename: {timestamp}_{base64description}_{originalname}
 function encodeFilename(timestamp: number, description: string | undefined, originalName: string): string {
-  const desc = description ? Buffer.from(description).toString('base64') : '';
-  const cleanName = originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
-  return `${timestamp}_${desc}_${cleanName}`;
+  const desc = description ? Buffer.from(description).toString('base64').replace(/[^a-zA-Z0-9]/g, '') : '';
+  // Handle cases where originalName might be empty, undefined, or have problematic characters
+  let cleanName = originalName || 'photo';
+  // Remove file extension first
+  cleanName = cleanName.replace(/\.[^.]*$/, '');
+  // Replace all non-alphanumeric characters (except hyphens) with underscores
+  cleanName = cleanName.replace(/[^a-zA-Z0-9-]/g, '_');
+  // Remove any leading/trailing underscores
+  cleanName = cleanName.replace(/^_+|_+$/g, '');
+  // If the name is empty after cleaning, use a default
+  if (!cleanName) {
+    cleanName = 'photo';
+  }
+  // Build the filename - keep it simple for mobile compatibility
+  return desc ? `${timestamp}_${desc}_${cleanName}` : `${timestamp}_${cleanName}`;
 }
 
 // Parse metadata from filename
