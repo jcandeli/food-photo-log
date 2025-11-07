@@ -1,5 +1,5 @@
-import { put, list, del } from '@vercel/blob';
-import sharp from 'sharp';
+import { put, list, del } from "@vercel/blob";
+import sharp from "sharp";
 
 interface PhotoMetadata {
   uploadDate: string;
@@ -9,7 +9,11 @@ interface PhotoMetadata {
 
 // Encode metadata in filename: just use timestamp for maximum compatibility
 // We'll store description in a separate way or reconstruct from pathname later
-function encodeFilename(timestamp: number, description: string | undefined, originalName: string): string {
+function encodeFilename(
+  timestamp: number,
+  description: string | undefined,
+  originalName: string
+): string {
   // For mobile compatibility, use the simplest possible filename
   // Just timestamp - this eliminates any pattern matching issues with Vercel Blob
   return `photo-${timestamp}`;
@@ -18,15 +22,17 @@ function encodeFilename(timestamp: number, description: string | undefined, orig
 // Parse metadata from filename
 // New format: photo-{timestamp} or photo-{timestamp}-{randsuffix}
 // Old format: {timestamp}_{base64desc}_{originalname} or {timestamp}_{base64desc}_{originalname}-{randsuffix}
-function parseFilename(filename: string): { timestamp: number; description?: string } | null {
+function parseFilename(
+  filename: string
+): { timestamp: number; description?: string } | null {
   // Remove .jpg extension
-  const withoutExt = filename.replace(/\.jpg$/, '');
+  const withoutExt = filename.replace(/\.jpg$/, "");
   // Remove random suffix (format: -XXXXXX where X is alphanumeric)
-  const withoutSuffix = withoutExt.replace(/-[a-zA-Z0-9]+$/, '');
+  const withoutSuffix = withoutExt.replace(/-[a-zA-Z0-9]+$/, "");
 
   // Try new format first: photo-{timestamp}
-  if (withoutSuffix.startsWith('photo-')) {
-    const timestampStr = withoutSuffix.replace('photo-', '');
+  if (withoutSuffix.startsWith("photo-")) {
+    const timestampStr = withoutSuffix.replace("photo-", "");
     const timestamp = parseInt(timestampStr, 10);
     if (!isNaN(timestamp)) {
       return { timestamp };
@@ -34,7 +40,7 @@ function parseFilename(filename: string): { timestamp: number; description?: str
   }
 
   // Fall back to old format: {timestamp}_{base64desc}_{originalname}
-  const parts = withoutSuffix.split('_');
+  const parts = withoutSuffix.split("_");
   if (parts.length < 1) return null;
 
   const timestamp = parseInt(parts[0], 10);
@@ -43,7 +49,8 @@ function parseFilename(filename: string): { timestamp: number; description?: str
   let description: string | undefined;
   if (parts.length >= 2 && parts[1]) {
     try {
-      description = Buffer.from(parts[1], 'base64').toString('utf-8') || undefined;
+      description =
+        Buffer.from(parts[1], "base64").toString("utf-8") || undefined;
     } catch {
       // If base64 decode fails, ignore description
     }
@@ -77,14 +84,9 @@ export async function uploadPhoto(
   const encodedFilename = encodeFilename(timestamp, description, file.name);
 
   const blob = await put(`${encodedFilename}.jpg`, processedBuffer, {
-    access: 'public',
-    contentType: 'image/jpeg',
+    access: "public",
+    contentType: "image/jpeg",
     addRandomSuffix: true,
-    metadata: {
-      timestamp: timestamp.toString(),
-      description: description || '',
-      originalName: file.name,
-    },
   });
 
   return {
@@ -94,31 +96,21 @@ export async function uploadPhoto(
   };
 }
 
-export async function listPhotos(): Promise<Array<{
-  url: string;
-  uploadDate: string;
-  description?: string;
-  timestamp: number;
-}>> {
+export async function listPhotos(): Promise<
+  Array<{
+    url: string;
+    uploadDate: string;
+    description?: string;
+    timestamp: number;
+  }>
+> {
   const { blobs } = await list();
 
   const photos = blobs
-    .filter((blob) => blob.pathname.endsWith('.jpg'))
+    .filter((blob) => blob.pathname.endsWith(".jpg"))
     .map((blob) => {
-      // First try to get metadata from blob's metadata field (new uploads)
-      const blobMetadata = blob as any;
-      if (blobMetadata.metadata?.timestamp) {
-        const timestamp = parseInt(blobMetadata.metadata.timestamp, 10);
-        return {
-          url: blob.url,
-          uploadDate: new Date(timestamp).toISOString(),
-          description: blobMetadata.metadata.description || undefined,
-          timestamp,
-        };
-      }
-
-      // Fall back to parsing filename (old uploads)
-      const filename = blob.pathname.split('/').pop() || blob.pathname;
+      // Parse filename to get timestamp and description
+      const filename = blob.pathname.split("/").pop() || blob.pathname;
       const parsed = parseFilename(filename);
 
       if (!parsed) {
@@ -145,4 +137,3 @@ export async function listPhotos(): Promise<Array<{
 export async function deletePhoto(url: string): Promise<void> {
   await del(url);
 }
-
