@@ -190,7 +190,6 @@ export function UploadForm() {
           id="file"
           type="file"
           accept="image/*"
-          capture="environment"
           onChange={handleFileChange}
           disabled={isUploading}
         />
