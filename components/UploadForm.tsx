@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import styled from 'styled-components';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import styled from "styled-components";
 
 const Form = styled.form`
   display: flex;
@@ -115,37 +115,104 @@ const SuccessMessage = styled.div`
 export function UploadForm() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-  const [description, setDescription] = useState('');
+  const [description, setDescription] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const router = useRouter();
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const compressImage = async (file: File): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          // Create canvas
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            reject(new Error("Failed to get canvas context"));
+            return;
+          }
+
+          // Calculate new dimensions (max 1920px width, maintain aspect ratio)
+          let width = img.width;
+          let height = img.height;
+          const maxWidth = 1920;
+
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          // Draw and compress
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Convert to blob with quality 0.85
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                reject(new Error("Failed to compress image"));
+                return;
+              }
+              // Create new file from blob
+              const compressedFile = new File([blob], file.name, {
+                type: "image/jpeg",
+                lastModified: Date.now(),
+              });
+              resolve(compressedFile);
+            },
+            "image/jpeg",
+            0.85
+          );
+        };
+        img.onerror = () => reject(new Error("Failed to load image"));
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       // Validate file type
-      if (!selectedFile.type.startsWith('image/')) {
-        setError('Please select an image file');
+      if (!selectedFile.type.startsWith("image/")) {
+        setError("Please select an image file");
         return;
       }
-      setFile(selectedFile);
+
       setError(null);
       setSuccess(false);
 
-      // Create preview
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreview(reader.result as string);
-      };
-      reader.readAsDataURL(selectedFile);
+      try {
+        // Compress image on client side
+        const compressedFile = await compressImage(selectedFile);
+        setFile(compressedFile);
+
+        // Create preview
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setPreview(reader.result as string);
+        };
+        reader.readAsDataURL(compressedFile);
+      } catch (err) {
+        setError(
+          "Failed to process image: " +
+            (err instanceof Error ? err.message : "Unknown error")
+        );
+      }
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file) {
-      setError('Please select a file');
+      setError("Please select a file");
       return;
     }
 
@@ -155,28 +222,28 @@ export function UploadForm() {
 
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append("file", file);
       if (description.trim()) {
-        formData.append('description', description.trim());
+        formData.append("description", description.trim());
       }
 
-      const response = await fetch('/api/upload', {
-        method: 'POST',
+      const response = await fetch("/api/upload", {
+        method: "POST",
         body: formData,
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Upload failed');
+        throw new Error(data.error || "Upload failed");
       }
 
       setSuccess(true);
       setTimeout(() => {
-        router.push('/');
+        router.push("/");
       }, 1500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed');
+      setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setIsUploading(false);
     }
@@ -213,12 +280,15 @@ export function UploadForm() {
       </FormGroup>
 
       {error && <ErrorMessage>{error}</ErrorMessage>}
-      {success && <SuccessMessage>Photo uploaded successfully! Redirecting...</SuccessMessage>}
+      {success && (
+        <SuccessMessage>
+          Photo uploaded successfully! Redirecting...
+        </SuccessMessage>
+      )}
 
       <Button type="submit" disabled={!file || isUploading}>
-        {isUploading ? 'Uploading...' : 'Upload Photo'}
+        {isUploading ? "Uploading..." : "Upload Photo"}
       </Button>
     </Form>
   );
 }
-

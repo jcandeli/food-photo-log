@@ -7,33 +7,33 @@ interface PhotoMetadata {
   timestamp: number;
 }
 
-// Encode metadata in filename: {timestamp}_{base64description}_{originalname}
+// Encode metadata in filename: just use timestamp for maximum compatibility
+// We'll store description in a separate way or reconstruct from pathname later
 function encodeFilename(timestamp: number, description: string | undefined, originalName: string): string {
-  const desc = description ? Buffer.from(description).toString('base64').replace(/[^a-zA-Z0-9]/g, '') : '';
-  // Handle cases where originalName might be empty, undefined, or have problematic characters
-  let cleanName = originalName || 'photo';
-  // Remove file extension first
-  cleanName = cleanName.replace(/\.[^.]*$/, '');
-  // Replace all non-alphanumeric characters (except hyphens) with underscores
-  cleanName = cleanName.replace(/[^a-zA-Z0-9-]/g, '_');
-  // Remove any leading/trailing underscores
-  cleanName = cleanName.replace(/^_+|_+$/g, '');
-  // If the name is empty after cleaning, use a default
-  if (!cleanName) {
-    cleanName = 'photo';
-  }
-  // Build the filename - keep it simple for mobile compatibility
-  return desc ? `${timestamp}_${desc}_${cleanName}` : `${timestamp}_${cleanName}`;
+  // For mobile compatibility, use the simplest possible filename
+  // Just timestamp - this eliminates any pattern matching issues with Vercel Blob
+  return `photo-${timestamp}`;
 }
 
 // Parse metadata from filename
-// Format: {timestamp}_{base64desc}_{originalname} or {timestamp}_{base64desc}_{originalname}-{randsuffix}
+// New format: photo-{timestamp} or photo-{timestamp}-{randsuffix}
+// Old format: {timestamp}_{base64desc}_{originalname} or {timestamp}_{base64desc}_{originalname}-{randsuffix}
 function parseFilename(filename: string): { timestamp: number; description?: string } | null {
   // Remove .jpg extension
   const withoutExt = filename.replace(/\.jpg$/, '');
   // Remove random suffix (format: -XXXXXX where X is alphanumeric)
   const withoutSuffix = withoutExt.replace(/-[a-zA-Z0-9]+$/, '');
 
+  // Try new format first: photo-{timestamp}
+  if (withoutSuffix.startsWith('photo-')) {
+    const timestampStr = withoutSuffix.replace('photo-', '');
+    const timestamp = parseInt(timestampStr, 10);
+    if (!isNaN(timestamp)) {
+      return { timestamp };
+    }
+  }
+
+  // Fall back to old format: {timestamp}_{base64desc}_{originalname}
   const parts = withoutSuffix.split('_');
   if (parts.length < 1) return null;
 
@@ -62,60 +62,13 @@ export async function uploadPhoto(
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
-  // Process image with EXIF orientation handling
-  // Read metadata to get EXIF orientation
+  // Since client already resized/compressed, just ensure proper orientation and format
   const image = sharp(buffer);
-  const metadata = await image.metadata();
 
-  // Build processing pipeline
-  let pipeline = image;
-
-  // Apply EXIF orientation to pixel data before resizing
-  // This ensures the image is correctly oriented regardless of device
-  if (metadata.orientation && metadata.orientation > 1) {
-    // Handle common orientations (most phone photos use 6 or 8 for portrait)
-    // Orientation 6 = 90° clockwise, Orientation 8 = 90° counter-clockwise
-    switch (metadata.orientation) {
-      case 2:
-        // Horizontal flip
-        pipeline = pipeline.flip();
-        break;
-      case 3:
-        // 180° rotation
-        pipeline = pipeline.rotate(180);
-        break;
-      case 4:
-        // Vertical flip
-        pipeline = pipeline.flop();
-        break;
-      case 5:
-        // 90° counter-clockwise + horizontal flip
-        pipeline = pipeline.rotate(-90).flip();
-        break;
-      case 6:
-        // 90° clockwise (most common for portrait photos)
-        pipeline = pipeline.rotate(90);
-        break;
-      case 7:
-        // 90° clockwise + horizontal flip
-        pipeline = pipeline.rotate(90).flip();
-        break;
-      case 8:
-        // 90° counter-clockwise (common for portrait photos)
-        pipeline = pipeline.rotate(-90);
-        break;
-    }
-  }
-
-  // Resize image: max width 1920px, maintain aspect ratio, quality 85%
-  // After applying orientation, ensure EXIF orientation tag is removed from output
-  const resizedBuffer = await pipeline
-    .resize(1920, null, {
-      withoutEnlargement: true,
-      fit: 'inside',
-    })
-    .jpeg({ quality: 85 })
-    .withMetadata({ orientation: 1 }) // Remove EXIF orientation tag (set to normal)
+  // Rotate based on EXIF orientation if needed, then output as JPEG
+  const processedBuffer = await image
+    .rotate() // Auto-rotate based on EXIF orientation
+    .jpeg({ quality: 90, mozjpeg: true }) // High quality since already compressed
     .toBuffer();
 
   const uploadDate = new Date().toISOString();
@@ -123,10 +76,15 @@ export async function uploadPhoto(
 
   const encodedFilename = encodeFilename(timestamp, description, file.name);
 
-  const blob = await put(`${encodedFilename}.jpg`, resizedBuffer, {
+  const blob = await put(`${encodedFilename}.jpg`, processedBuffer, {
     access: 'public',
     contentType: 'image/jpeg',
     addRandomSuffix: true,
+    metadata: {
+      timestamp: timestamp.toString(),
+      description: description || '',
+      originalName: file.name,
+    },
   });
 
   return {
@@ -147,11 +105,21 @@ export async function listPhotos(): Promise<Array<{
   const photos = blobs
     .filter((blob) => blob.pathname.endsWith('.jpg'))
     .map((blob) => {
-      // Extract filename from pathname (remove path if any)
+      // First try to get metadata from blob's metadata field (new uploads)
+      const blobMetadata = blob as any;
+      if (blobMetadata.metadata?.timestamp) {
+        const timestamp = parseInt(blobMetadata.metadata.timestamp, 10);
+        return {
+          url: blob.url,
+          uploadDate: new Date(timestamp).toISOString(),
+          description: blobMetadata.metadata.description || undefined,
+          timestamp,
+        };
+      }
+
+      // Fall back to parsing filename (old uploads)
       const filename = blob.pathname.split('/').pop() || blob.pathname;
-      // Remove the random suffix and .jpg extension to get the encoded name
-      const baseName = filename.replace(/-\w+\.jpg$/, '').replace(/\.jpg$/, '');
-      const parsed = parseFilename(baseName);
+      const parsed = parseFilename(filename);
 
       if (!parsed) {
         // Fallback: use uploadedAt date if parsing fails
