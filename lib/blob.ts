@@ -7,21 +7,31 @@ interface PhotoMetadata {
   timestamp: number;
 }
 
-// Encode metadata in filename: just use timestamp for maximum compatibility
-// We'll store description in a separate way or reconstruct from pathname later
+// Encode metadata in filename using the old format: {timestamp}_{base64desc}_{originalname}
 function encodeFilename(
   timestamp: number,
   description: string | undefined,
   originalName: string
 ): string {
-  // For mobile compatibility, use the simplest possible filename
-  // Just timestamp - this eliminates any pattern matching issues with Vercel Blob
-  return `photo-${timestamp}`;
+  // Use old format with base64-encoded description
+  const base64Desc = description
+    ? Buffer.from(description).toString("base64")
+    : "";
+  // Clean up original name - remove extension and special chars
+  const cleanName = originalName
+    .replace(/\.[^.]+$/, "")
+    .replace(/[^a-zA-Z0-9]/g, "");
+
+  if (base64Desc) {
+    return `${timestamp}_${base64Desc}_${cleanName}`;
+  } else {
+    return `${timestamp}__${cleanName}`; // double underscore when no description
+  }
 }
 
 // Parse metadata from filename
-// New format: photo-{timestamp} or photo-{timestamp}-{randsuffix}
-// Old format: {timestamp}_{base64desc}_{originalname} or {timestamp}_{base64desc}_{originalname}-{randsuffix}
+// Current format: {timestamp}_{base64desc}_{originalname} or {timestamp}_{base64desc}_{originalname}-{randsuffix}
+// Legacy format: photo-{timestamp} or photo-{timestamp}-{randsuffix} (no description)
 function parseFilename(
   filename: string
 ): { timestamp: number; description?: string } | null {
@@ -47,10 +57,10 @@ function parseFilename(
   if (isNaN(timestamp)) return null;
 
   let description: string | undefined;
-  if (parts.length >= 2 && parts[1]) {
+  if (parts.length >= 2 && parts[1] && parts[1].length > 0) {
     try {
-      description =
-        Buffer.from(parts[1], "base64").toString("utf-8") || undefined;
+      const decoded = Buffer.from(parts[1], "base64").toString("utf-8");
+      description = decoded.length > 0 ? decoded : undefined;
     } catch {
       // If base64 decode fails, ignore description
     }
